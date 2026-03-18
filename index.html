@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attractor Basins</title>
+<link href="https://fonts.googleapis.com/css2?family=Livvic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c0f14;--surface:rgba(21,25,32,0.92);--border:rgba(255,255,255,0.08);--text:#e8e6e1;--text2:#8a8880;--text3:#5a5850;--accent:#c8a96e;--accent2:#a08550;--success:#4ade80;--fail:#f87171}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Livvic',sans-serif;overflow:hidden;height:100vh}
+#landscape{position:absolute;inset:0;z-index:0;cursor:grab}
+#landscape:active{cursor:grabbing}
+
+.side{position:fixed;right:0;top:0;bottom:0;width:280px;z-index:10;display:flex;flex-direction:column;pointer-events:none;background:linear-gradient(to left,rgba(12,15,20,0.92) 70%,transparent);padding:16px 16px 16px 24px}
+.side>*{pointer-events:auto}
+
+.s-header{margin-bottom:12px}
+.s-title{font-family:'Livvic',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.3px}
+.s-pips{display:flex;gap:4px;margin-top:6px}
+.pip{width:20px;height:3px;border-radius:2px;background:rgba(255,255,255,0.1);transition:all 0.4s}
+.pip.done{background:var(--accent)}.pip.cur{background:var(--accent);box-shadow:0 0 6px rgba(200,169,110,0.5)}
+
+.s-target{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px;position:relative;overflow:hidden}
+.s-target::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--tc,var(--accent));opacity:0.6}
+.s-target .lv{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:3px}
+.s-target .em{font-family:'Livvic',sans-serif;font-weight:700;font-size:22px}
+.s-target .ht{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.5}
+.s-target .tr{font-size:11px;color:var(--text2);margin-top:4px}
+.s-target .ar{color:var(--accent);margin:0 4px}
+
+.s-readout{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.ro-em{font-family:'Livvic',sans-serif;font-weight:700;font-size:16px;transition:color 0.3s}
+.ro-w{font-size:10px;color:var(--text2);font-style:italic;margin-top:2px}
+.ring{width:34px;height:34px;border-radius:50%;border:3px solid var(--text3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--text2);transition:all 0.3s;flex-shrink:0}
+.ring.hot{border-color:var(--success);color:var(--success)}.ring.warm{border-color:var(--accent);color:var(--accent)}
+
+.s-sliders{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.sg{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+.sg-t{display:flex;justify-content:space-between;margin-bottom:4px}
+.sg-n{font-size:11px;font-weight:500}.sg-v{font-size:10px;color:var(--accent);font-weight:500}
+.sg input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:3px;background:rgba(255,255,255,0.08);outline:none;cursor:pointer}
+.sg input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 1px rgba(200,169,110,0.3);cursor:grab}
+.sg input[type="range"]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:grab}
+.sg-lb{display:flex;justify-content:space-between;margin-top:2px}.sg-lb span{font-size:8px;color:var(--text3)}
+
+.s-btns{display:flex;gap:8px}
+.btn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Livvic',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;text-align:center}
+.btn:hover{background:rgba(255,255,255,0.06)}.btn.pri{background:var(--accent);color:var(--bg);border-color:var(--accent)}.btn.pri:hover{background:var(--accent2)}
+
+.spacer{flex:1}
+
+.drag-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text3);letter-spacing:0.5px;opacity:0.5;z-index:5;pointer-events:none}
+
+.ov{display:none;position:fixed;inset:0;z-index:100;background:rgba(12,15,20,0.8);backdrop-filter:blur(10px);justify-content:center;align-items:center}
+.ov.show{display:flex}
+.ovc{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:32px 28px;text-align:center;max-width:360px;width:90%;animation:pop 0.3s ease-out;backdrop-filter:blur(12px)}
+@keyframes pop{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+.ovi{width:48px;height:48px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.ovi.w{background:rgba(74,222,128,0.12);color:var(--success)}.ovi.l{background:rgba(248,113,113,0.12);color:var(--fail)}
+.ovt{font-family:'Livvic',sans-serif;font-weight:700;font-size:22px;margin-bottom:6px}
+.ovp{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px}
+.ovb{padding:10px 26px;border-radius:10px;border:none;background:var(--accent);color:var(--bg);font-family:'Livvic',sans-serif;font-size:13px;font-weight:500;cursor:pointer}
+.ovb:hover{background:var(--accent2)}
+
+.intro{display:flex;position:fixed;inset:0;z-index:200;background:rgba(12,15,20,0.92);backdrop-filter:blur(14px);justify-content:center;align-items:center}
+.intro.hidden{display:none}
+.intro-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px;max-width:520px;width:92%;backdrop-filter:blur(12px);animation:pop 0.4s ease-out}
+.intro-card h2{font-family:'Livvic',sans-serif;font-weight:700;font-size:24px;margin-bottom:6px;text-align:center}
+.intro-card .intro-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:16px;line-height:1.6}
+.intro-card .intro-body{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;text-align:center}
+.intro-3d{width:100%;height:220px;border-radius:12px;overflow:hidden;margin-bottom:16px;border:1px solid var(--border);cursor:grab}
+.intro-3d:active{cursor:grabbing}
+.intro-3d canvas{width:100%!important;height:100%!important}
+.intro-params{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.intro-param{display:flex;gap:12px;align-items:flex-start}
+.intro-icon{width:32px;height:32px;border-radius:8px;background:rgba(200,169,110,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:var(--accent)}
+.intro-param-text{flex:1}
+.intro-param-text strong{font-size:12px;font-weight:600;display:block;margin-bottom:1px}
+.intro-param-text p{font-size:11px;color:var(--text2);line-height:1.5;margin:0}
+.intro-footer{text-align:center;display:flex;gap:10px;justify-content:center}
+.intro-footer .ovb{padding:10px 32px;font-size:13px}
+.intro-page{display:none}.intro-page.active{display:block}
+.intro-footer{text-align:center}
+.intro-footer .ovb{padding:12px 36px;font-size:14px}
+
+@media(max-width:700px){
+  .side{width:100%;height:auto;top:auto;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(12,15,20,0.95) 70%,transparent);padding:10px 16px 16px;flex-direction:column}
+  .s-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .s-sliders{flex-direction:row;gap:8px}
+  .s-sliders .sg{flex:1}
+}
+</style>
+</head>
+<body>
+<canvas id="landscape"></canvas>
+<div class="drag-hint">drag landscape to rotate</div>
+
+<div class="side">
+  <div class="s-header">
+    <div class="s-title">Attractor basins</div>
+    <div class="s-pips" id="pips"></div>
+  </div>
+
+  <div class="s-target" id="ban">
+    <div class="lv" id="lv">Level 1</div>
+    <div class="em" id="tEmo">Anxiety</div>
+    <div class="ht" id="tHint"></div>
+    <div class="tr" id="tTr" style="display:none"><span id="trF"></span><span class="ar">&#8594;</span><span id="trT"></span></div>
+  </div>
+
+  <div class="s-readout">
+    <div>
+      <div class="ro-em" id="cEmo">...</div>
+      <div class="ro-w" id="cW"></div>
+    </div>
+    <div class="ring" id="ring">50</div>
+  </div>
+
+  <div class="s-sliders">
+    <div class="sg"><div class="sg-t"><span class="sg-n">Trust</span><span class="sg-v" id="v0">0.50</span></div><input type="range" min="0" max="100" value="50" id="s0" step="1"><div class="sg-lb"><span>Low</span><span>High</span></div></div>
+    <div class="sg"><div class="sg-t"><span class="sg-n">Uncertainty</span><span class="sg-v" id="v1">0.50</span></div><input type="range" min="0" max="100" value="50" id="s1" step="1"><div class="sg-lb"><span>Low</span><span>High</span></div></div>
+    <div class="sg"><div class="sg-t"><span class="sg-n">Goal momentum</span><span class="sg-v" id="v2">0.50</span></div><input type="range" min="0" max="100" value="50" id="s2" step="1"><div class="sg-lb"><span>Losing ground</span><span>Gaining ground</span></div></div>
+  </div>
+
+  <div class="s-btns"><button class="btn" id="rbtn">Reset</button><button class="btn pri" id="lbtn">Lock in answer</button></div>
+
+  <div class="spacer"></div>
+</div>
+
+<div class="ov" id="ov"><div class="ovc"><div class="ovi" id="ovi"></div><div class="ovt" id="ovt"></div><div class="ovp" id="ovp"></div><button class="ovb" id="ovb">Next</button></div></div>
+
+<div class="intro" id="intro">
+  <div class="intro-card">
+    <div class="intro-page active" id="introP1">
+      <h2>Attractor basins</h2>
+      <div class="intro-body">Imagine a landscape of hills and valleys. A ball placed on this landscape will naturally roll into the nearest valley and settle there. These valleys are called attractor basins &mdash; stable states that a system tends toward.</div>
+      <div class="intro-3d" id="intro3d"></div>
+      <div class="intro-body">Your emotional life works the same way. Emotions aren&rsquo;t switches that flip on and off &mdash; they&rsquo;re basins you fall into, shaped by the terrain beneath you. Joy, anxiety, serenity, fear &mdash; each is a valley in a landscape that is constantly shifting.</div>
+      <div class="intro-body" style="color:var(--text);font-weight:500;">What shapes the landscape? Your relationship to the world around you.</div>
+      <div class="intro-footer">
+        <button class="ovb" onclick="showIntroPage(2)">Next</button>
+      </div>
+    </div>
+    <div class="intro-page" id="introP2">
+      <h2>Three variables shape the terrain</h2>
+      <div class="intro-params">
+        <div class="intro-param">
+          <div class="intro-icon">&#9678;</div>
+          <div class="intro-param-text">
+            <strong>Trust</strong>
+            <p>How much do you trust your senses? High trust grounds you. Low trust destabilises everything.</p>
+          </div>
+        </div>
+        <div class="intro-param">
+          <div class="intro-icon">&#10038;</div>
+          <div class="intro-param-text">
+            <strong>Uncertainty</strong>
+            <p>How predictable is the world? Low uncertainty means no surprises. High uncertainty means your predictions are failing.</p>
+          </div>
+        </div>
+        <div class="intro-param">
+          <div class="intro-icon">&#10140;</div>
+          <div class="intro-param-text">
+            <strong>Goal momentum</strong>
+            <p>Are you moving towards what you value? High momentum means gaining ground. Low momentum means stalling, or feeling lost.</p>
+          </div>
+        </div>
+      </div>
+      <div class="intro-body">Move the sliders to reshape the landscape. Find the target emotion by making its basin the deepest valley.</div>
+      <div class="intro-footer">
+        <button class="ovb" style="background:transparent;border:1px solid var(--border);color:var(--text);" onclick="showIntroPage(1)">Back</button>
+        <button class="ovb" onclick="document.getElementById('intro').classList.add('hidden')">Begin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+function showIntroPage(n){
+  document.getElementById('introP1').classList.remove('active');
+  document.getElementById('introP2').classList.remove('active');
+  document.getElementById('introP'+n).classList.add('active');
+}
+
+// Intro 3D preview landscape
+(function(){
+  var ctr=document.getElementById('intro3d');
+  if(!ctr)return;
+  var w=ctr.clientWidth||460,h=220;
+  var sc=new THREE.Scene();
+  var cam=new THREE.PerspectiveCamera(50,w/h,0.1,100);
+  var ren=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  ren.setSize(w,h);ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.setClearColor(0x0a0e17);
+  ctr.appendChild(ren.domElement);
+  sc.add(new THREE.AmbientLight(0xffffff,0.35));
+  var dl=new THREE.DirectionalLight(0xffffff,0.7);dl.position.set(3,5,4);sc.add(dl);
+
+  var basins=[
+    {cx:1.5,cz:1.5,d:1.4,w:0.8,col:0xffa726},
+    {cx:-1.5,cz:1.2,d:1.2,w:0.7,col:0xf25c5c},
+    {cx:1.2,cz:-1.5,d:1.0,w:0.85,col:0x6dd5a0},
+    {cx:-1.0,cz:-1.5,d:1.1,w:0.8,col:0x7a8694},
+    {cx:0.5,cz:0.3,d:0.7,w:0.6,col:0x3cc9a8}
+  ];
+
+  var res=70,geo=new THREE.PlaneGeometry(6,6,res,res);geo.rotateX(-Math.PI/2);
+  var pos=geo.attributes.position;
+  var cols=new Float32Array(pos.count*3);
+  geo.setAttribute('color',new THREE.BufferAttribute(cols,3));
+  for(var i=0;i<pos.count;i++){
+    var x=pos.getX(i),z=pos.getZ(i),y=0;
+    for(var j=0;j<basins.length;j++){var b=basins[j],dx=x-b.cx,dz=z-b.cz;y+=-b.d*Math.exp(-(dx*dx+dz*dz)/(b.w*b.w)*2);}
+    pos.setY(i,y*0.7);
+    var rr=0,gg=0,bb=0,tw=0;
+    for(var j=0;j<basins.length;j++){var b=basins[j],dx=x-b.cx,dz=z-b.cz;var wt=Math.exp(-(dx*dx+dz*dz)/(b.w*b.w*1.5))*b.d;var cc=new THREE.Color(b.col);rr+=cc.r*wt;gg+=cc.g*wt;bb+=cc.b*wt;tw+=wt;}
+    var mf=Math.min(tw,1)*0.7;
+    cols[i*3]=0.06*(1-mf)+(tw>0.01?rr/tw:0)*mf;cols[i*3+1]=0.08*(1-mf)+(tw>0.01?gg/tw:0)*mf;cols[i*3+2]=0.12*(1-mf)+(tw>0.01?bb/tw:0)*mf;
+  }
+  geo.attributes.color.needsUpdate=true;geo.computeVertexNormals();
+  sc.add(new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,shininess:25,transparent:true,opacity:0.88,side:THREE.DoubleSide})));
+  sc.add(new THREE.Mesh(geo.clone(),new THREE.MeshBasicMaterial({color:0x1a2a44,wireframe:true,transparent:true,opacity:0.1})));
+
+  var ball=new THREE.Mesh(new THREE.SphereGeometry(0.1,12,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  var deepB=basins[0];
+  ball.position.set(deepB.cx,-deepB.d*0.7+0.12,deepB.cz);
+  sc.add(ball);
+  sc.add(new THREE.Mesh(new THREE.SphereGeometry(0.16,12,12),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.12})));
+  sc.children[sc.children.length-1].position.copy(ball.position);
+
+  var rY=0.5,rX=0.4,tRY=0.5,tRX=0.4,isDrag=false,pX=0,pY=0;
+  ctr.addEventListener('pointerdown',function(e){isDrag=true;pX=e.clientX;pY=e.clientY;});
+  window.addEventListener('pointerup',function(){isDrag=false;});
+  window.addEventListener('pointermove',function(e){if(!isDrag)return;tRY+=(e.clientX-pX)*0.006;tRX+=(e.clientY-pY)*0.005;tRX=Math.max(0.15,Math.min(1.1,tRX));pX=e.clientX;pY=e.clientY;});
+
+  function anim(){
+    requestAnimationFrame(anim);
+    rY+=(tRY-rY)*0.08;rX+=(tRX-rX)*0.08;
+    var d=6;
+    cam.position.x=Math.sin(rY)*Math.cos(rX)*d;cam.position.y=Math.sin(rX)*d;cam.position.z=Math.cos(rY)*Math.cos(rX)*d;
+    cam.lookAt(0,-0.4,0);ren.render(sc,cam);
+  }
+  anim();
+
+  var ro=new ResizeObserver(function(){var nw=ctr.clientWidth;if(nw>0){cam.aspect=nw/h;cam.updateProjectionMatrix();ren.setSize(nw,h);}});
+  ro.observe(ctr);
+})();
+
+(function(){
+
+var E={
+  anxiety:{n:'Anxiety',c:0xf25c5c,cx:-0.5,cz:0.55,bd:1.5,bw:0.26,
+    w:['tense','tightly','fluttering','halting','tentative','rushing','pulsing','accelerating','pulling','pushing','effortful','gripping','clenching'],
+    h:'High levels of uncertainty produce maladaptive strategies, including muscular bracing and hypervigilance.',
+    cr:-0.8,sr:0.6,gr:-0.5},
+  joy:{n:'Joy',c:0xffa726,cx:0.55,cz:0.6,bd:1.3,bw:0.28,
+    w:['upswelling','surging','swelling','bursting','cresting','pulsing','floating','bounding','gliding','exploding','accelerating','rushing','loosely'],
+    h:'The elation of right relation liberates degrees of freedom, bringing extraversion and playfulness.',
+    cr:0.3,sr:-0.6,gr:1.0},
+  fear:{n:'Fear',c:0xff7043,cx:-0.45,cz:0.2,bd:1.35,bw:0.22,
+    w:['freezing','shrinking','dropping','pulling','gripping','rushing','trembling','sinking','tightening','recoiling','jolting','bracing','plummeting'],
+    h:'A specific threat mobilises the organism into fight or flight.',
+    cr:-0.5,sr:1.0,gr:-0.7},
+  depression:{n:'Depression',c:0x7a8694,cx:-0.35,cz:-0.6,bd:1.3,bw:0.3,
+    w:['dropping','fading','disappearing','drawn out','heavy','weak','still','halting','tense','languorous','fleeting','draining','numbing','dimming'],
+    h:'A \u201Clocked-in\u201D brain struggles to update with new beliefs.',
+    cr:-0.4,sr:0.1,gr:-0.8},
+  serenity:{n:'Serenity',c:0x6dd5a0,cx:0.4,cz:-0.6,bd:1.4,bw:0.3,
+    w:['floating','gliding','relaxing','gentle','easy','loosely','still','languorous','swinging','flowing','settling','softening','resting','releasing'],
+    h:'Inner balance allows the tolerance of ambiguity.',
+    cr:0.7,sr:-0.15,gr:-0.15},
+  confidence:{n:'Confidence',c:0x5b9cf5,cx:0.45,cz:0.15,bd:1.25,bw:0.24,
+    w:['surging','steady','grounding','forceful','powerful','easy','gliding','bounding','pressing','pushing','anchoring','widening'],
+    h:'Concentration on an outcome moves the whole self towards it.',
+    cr:1.0,sr:-0.15,gr:0.55},
+  hope:{n:'Hope',c:0x3cc9a8,cx:0.2,cz:0.1,bd:1.3,bw:0.22,
+    w:['lifting','rising','reaching','leaning','surging','flickering','swelling','pulling','floating','tentative','kindling','brightening','opening'],
+    h:'Trust that future goals will be met allows uncertainty to be accommodated.',
+    cr:0.3,sr:0.3,gr:0.6}
+};
+var K=Object.keys(E);
+
+var levelInsights={
+  anxiety:'Anxiety deepens when trust falls and goals stall. The behavioural inhibition system activates \u2014 uncertainty rises as goal orientation drops, and the organism can\u2019t rely on its own signals while the world keeps violating predictions. Notice how anxiety is immobilising, unlike fear which mobilises.',
+  joy:'Joy needs a sense of safety \u2014 which can come from high trust or from low uncertainty \u2014 combined with the arousal of forward momentum. When uncertainty rises, joy shares territory with hope: both draw on trust and momentum, but hope extends further into uncertain terrain.',
+  fear:'Fear responds to a specific threat \u2014 extreme uncertainty about an immediate outcome. Unlike anxiety, which is a chronic immobilising hum, fear is acute and mobilising: fight or flight. The organism doesn\u2019t freeze, it acts. Low trust and low momentum deepen it further.',
+  depression:'Depression is dominated by low momentum \u2014 the sense that nothing is moving toward what matters. Low trust locks it in: the brain struggles to update with new beliefs. Notice how uncertainty barely registers \u2014 the system has stopped responding to new information.',
+  serenity:'Serenity is anchored in high trust, and what makes it distinctive is that it tolerates uncertainty \u2014 even high uncertainty doesn\u2019t collapse it if trust is strong enough. Serenity isn\u2019t a retreat from action: it\u2019s a platform that enables striving if needed, rather than excluding it.',
+  confidence:'Confidence requires high trust and momentum together. Uncertainty doesn\u2019t need to be low \u2014 it gets functionally neutralised when you trust your signals and you\u2019re making progress. You don\u2019t need the world to be predictable; you trust your capacity to handle whatever comes.',
+  hope:'Hope accommodates uncertainty \u2014 that\u2019s what distinguishes it from joy. Both need trust and momentum, but hope holds even when predictions are being violated. It\u2019s trust in future goals that allows the present uncertainty to be tolerated.',
+  'anxiety-serenity':'To move from anxiety to serenity, trust had to rise dramatically. But uncertainty didn\u2019t need to drop \u2014 serenity tolerates ambiguity. The path runs through trust, not through eliminating uncertainty. Momentum could stay low: serenity is a platform, not a pursuit.',
+  'depression-hope':'Depression to hope required raising both trust and momentum. The locked-in system had to start trusting its signals again and find forward movement. Uncertainty could stay moderate \u2014 hope doesn\u2019t need the world to be predictable.',
+  'fear-confidence':'Fear to confidence required raising trust and momentum while the acute threat response subsided. Confidence doesn\u2019t need uncertainty to disappear \u2014 it needs the organism to trust itself enough that uncertainty stops mattering.'
+};
+
+var levels=[
+  {ty:'f',tg:'anxiety'},{ty:'f',tg:'joy'},{ty:'f',tg:'fear'},{ty:'f',tg:'depression'},
+  {ty:'f',tg:'serenity'},{ty:'f',tg:'confidence'},{ty:'f',tg:'hope'},
+  {ty:'t',fr:'anxiety',to:'serenity'},{ty:'t',fr:'depression',to:'hope'},{ty:'t',fr:'fear',to:'confidence'}
+];
+var cl=0,tp=0;
+
+var cv=document.getElementById('landscape'),W=innerWidth,H=innerHeight;
+var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,W/H,0.1,100);
+var ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+ren.setSize(W,H);ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.setClearColor(0x0a0e17);
+sc.add(new THREE.AmbientLight(0xffffff,0.35));
+var dl=new THREE.DirectionalLight(0xffffff,0.7);dl.position.set(3,5,4);sc.add(dl);
+
+var camDist=7,rY=0.5,rX=0.42,tRY=0.5,tRX=0.42;
+
+var res=90,geo=new THREE.PlaneGeometry(6,6,res,res);geo.rotateX(-Math.PI/2);
+var pos=geo.attributes.position,cols=new Float32Array(pos.count*3);
+geo.setAttribute('color',new THREE.BufferAttribute(cols,3));
+sc.add(new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,shininess:25,transparent:true,opacity:0.88,side:THREE.DoubleSide})));
+var wG=geo.clone();sc.add(new THREE.Mesh(wG,new THREE.MeshBasicMaterial({color:0x1a2a44,wireframe:true,transparent:true,opacity:0.1})));
+
+var P=[],SP=[];
+for(var i=0;i<K.length;i++){
+  var e=E[K[i]];P.push({cx:e.cx*3,cz:e.cz*3,d:e.bd,w:e.bw*3});
+  var c2=document.createElement('canvas');c2.width=256;c2.height=64;
+  var x2=c2.getContext('2d');x2.font='500 26px Livvic,sans-serif';x2.textAlign='center';x2.textBaseline='middle';
+  x2.fillStyle='#'+new THREE.Color(e.c).getHexString();x2.fillText(e.n,128,32);
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c2),transparent:true,depthTest:false}));
+  sp.scale.set(1.1,0.32,1);sc.add(sp);SP.push(sp);
+}
+
+var bl=new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16),new THREE.MeshBasicMaterial({color:0xffffff}));sc.add(bl);
+var gw=new THREE.Mesh(new THREE.SphereGeometry(0.2,16,16),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.12}));sc.add(gw);
+var bp={x:0,y:0,z:0},bt={x:0,y:0,z:0};
+var currentDeepest='';
+
+function gY(x,z){var y=0;for(var i=0;i<P.length;i++){var p=P[i],dx=x-p.cx,dz=z-p.cz;y+=-p.d*Math.exp(-(dx*dx+dz*dz)/(p.w*p.w)*2);}return y*0.7;}
+
+function updateLandscape(trust,uncert,goal){
+  for(var i=0;i<K.length;i++){var e=E[K[i]];var s=1+(trust-0.5)*2*e.cr+(uncert-0.5)*2*e.sr+(goal-0.5)*2*e.gr;P[i].d=Math.max(0.1,e.bd*Math.max(0.05,s));P[i].w=e.bw*3*(0.8+s*0.2);}
+  var p=pos,cl2=geo.attributes.color,wp=wG.attributes.position;
+  for(var i=0;i<p.count;i++){var x=p.array[i*3],z=p.array[i*3+2],y=0;
+    for(var j=0;j<P.length;j++){var pp=P[j],dx=x-pp.cx,dz=z-pp.cz;y+=-pp.d*Math.exp(-(dx*dx+dz*dz)/(pp.w*pp.w)*2);}
+    y*=0.7;p.setY(i,y);wp.setY(i,y);
+    var rr=0,gg=0,bb=0,tw=0;
+    for(var j=0;j<P.length;j++){var pp=P[j],dx=x-pp.cx,dz=z-pp.cz;var wt=Math.exp(-(dx*dx+dz*dz)/(pp.w*pp.w*1.5))*(pp.d/E[K[j]].bd);var cc=new THREE.Color(E[K[j]].c);rr+=cc.r*wt;gg+=cc.g*wt;bb+=cc.b*wt;tw+=wt;}
+    var mf=Math.min(tw,1)*0.7;cl2.setXYZ(i,0.06*(1-mf)+(tw>0.01?rr/tw:0)*mf,0.08*(1-mf)+(tw>0.01?gg/tw:0)*mf,0.12*(1-mf)+(tw>0.01?bb/tw:0)*mf);}
+  p.needsUpdate=true;wp.needsUpdate=true;cl2.needsUpdate=true;geo.computeVertexNormals();
+  var deepest=-Infinity,bx=0,bz=0,dI=0;
+  for(var i=0;i<P.length;i++){if(P[i].d>deepest){deepest=P[i].d;bx=P[i].cx;bz=P[i].cz;dI=i;}}
+  bt.x=bx;bt.z=bz;bt.y=gY(bx,bz)+0.14;currentDeepest=K[dI];
+  for(var i=0;i<K.length;i++){var pp=P[i],cy=0;for(var j=0;j<P.length;j++){var p2=P[j],dx=pp.cx-p2.cx,dz=pp.cz-p2.cz;cy+=-p2.d*Math.exp(-(dx*dx+dz*dz)/(p2.w*p2.w)*2);}cy*=0.7;SP[i].position.set(pp.cx,cy-0.2,pp.cz);}
+  return currentDeepest;
+}
+
+function proximity(targetKey){var targetD=0,maxD=0;for(var i=0;i<K.length;i++){if(K[i]===targetKey)targetD=P[i].d;if(P[i].d>maxD)maxD=P[i].d;}if(maxD<=0)return 0;return Math.round((targetD/maxD)*100);}
+function pw(k,n){var w=E[k].w.slice(),p=[];for(var i=0;i<Math.min(n,w.length);i++){var idx=Math.floor(Math.random()*w.length);p.push(w.splice(idx,1)[0]);}return p;}
+function hex(c){return'#'+new THREE.Color(c).getHexString();}
+
+var sE=[document.getElementById('s0'),document.getElementById('s1'),document.getElementById('s2')];
+var vE=[document.getElementById('v0'),document.getElementById('v1'),document.getElementById('v2')];
+function gV(){return sE.map(function(s){return parseInt(s.value)/100;});}
+
+function onSlider(){
+  var v=gV();for(var i=0;i<3;i++)vE[i].textContent=v[i].toFixed(2);
+  var closest=updateLandscape(v[0],v[1],v[2]);var e=E[closest];
+  var el=document.getElementById('cEmo');el.textContent=e.n;el.style.color=hex(e.c);
+  document.getElementById('cW').textContent=pw(closest,4).join(', ');
+  var lv=levels[cl];if(!lv)return;
+  var tk=lv.ty==='f'?lv.tg:(tp===0?lv.fr:lv.to);
+  var prox=proximity(tk);var r=document.getElementById('ring');r.textContent=prox;
+  r.className='ring'+(prox>=95?' hot':prox>=70?' warm':'');
+}
+
+function setupLevel(){
+  var lv=levels[cl];
+  if(!lv){var o=document.getElementById('ov');o.classList.add('show');document.getElementById('ovi').className='ovi w';document.getElementById('ovi').innerHTML='&#9734;';document.getElementById('ovt').textContent='Landscape mastered';document.getElementById('ovt').style.color='#c8a96e';document.getElementById('ovp').textContent='You navigated the full attractor topology.';document.getElementById('ovb').textContent='Play again';document.getElementById('ovb').onclick=function(){o.classList.remove('show');cl=0;setupLevel();};return;}
+  tp=0;var pp=document.getElementById('pips');pp.innerHTML='';
+  for(var i=0;i<levels.length;i++){var p=document.createElement('div');p.className='pip'+(i<cl?' done':'')+(i===cl?' cur':'');pp.appendChild(p);}
+  document.getElementById('lv').textContent='Level '+(cl+1);var ti=document.getElementById('tTr');
+  if(lv.ty==='f'){var e=E[lv.tg];document.getElementById('tEmo').textContent=e.n;document.getElementById('tEmo').style.color=hex(e.c);document.getElementById('ban').style.setProperty('--tc',hex(e.c));document.getElementById('tHint').textContent=e.h;ti.style.display='none';document.getElementById('lbtn').textContent='Lock in answer';}
+  else{var fe=E[lv.fr],te=E[lv.to];document.getElementById('tEmo').textContent=fe.n;document.getElementById('tEmo').style.color=hex(fe.c);document.getElementById('ban').style.setProperty('--tc',hex(fe.c));document.getElementById('tHint').textContent='First find '+fe.n.toLowerCase()+', then navigate to '+te.n.toLowerCase()+'.';ti.style.display='block';document.getElementById('trF').textContent=fe.n;document.getElementById('trF').style.color=hex(fe.c);document.getElementById('trT').textContent=te.n;document.getElementById('trT').style.color=hex(te.c);document.getElementById('lbtn').textContent='Lock in start';}
+  sE.forEach(function(s){s.value=50;});onSlider();
+}
+
+function checkAnswer(){var lv=levels[cl];if(!lv)return;
+  if(lv.ty==='f'){showResult(currentDeepest===lv.tg,lv.tg);}
+  else{if(tp===0){if(currentDeepest===lv.fr){tp=1;var te=E[lv.to];document.getElementById('tEmo').textContent=te.n;document.getElementById('tEmo').style.color=hex(te.c);document.getElementById('ban').style.setProperty('--tc',hex(te.c));document.getElementById('tHint').textContent='Now navigate to '+te.n.toLowerCase()+'. What needs to change?';document.getElementById('lbtn').textContent='Lock in answer';onSlider();}else{showResult(false,lv.fr);}}
+  else{showResult(currentDeepest===lv.to,lv.to);}}
+}
+
+function showResult(win,k){var o=document.getElementById('ov');o.classList.add('show');var e=E[k];
+  document.getElementById('ovi').className='ovi '+(win?'w':'l');document.getElementById('ovi').innerHTML=win?'&#10003;':'&#10007;';
+  document.getElementById('ovt').textContent=win?'Basin found':'Not quite';document.getElementById('ovt').style.color=win?'var(--success)':'var(--fail)';
+  if(win){
+    var lv=levels[cl];
+    var insightKey=lv.ty==='f'?lv.tg:lv.fr+'-'+lv.to;
+    var insight=levelInsights[insightKey]||'';
+    document.getElementById('ovp').textContent=insight;
+    var b=document.getElementById('ovb');b.textContent=cl<levels.length-1?'Next level':'Finish';b.onclick=function(){o.classList.remove('show');cl++;setupLevel();};}
+  else{var cur=E[currentDeepest];document.getElementById('ovp').textContent='The ball is in '+cur.n.toLowerCase()+', not '+e.n.toLowerCase()+'. Watch the landscape and adjust.';document.getElementById('ovb').textContent='Try again';document.getElementById('ovb').onclick=function(){o.classList.remove('show');};}
+}
+
+sE.forEach(function(s){s.addEventListener('input',onSlider);});
+document.getElementById('rbtn').addEventListener('click',function(){sE.forEach(function(s){s.value=50;});onSlider();});
+document.getElementById('lbtn').addEventListener('click',checkAnswer);
+
+var isDrag=false,pX=0,pY=0;
+cv.addEventListener('pointerdown',function(e){isDrag=true;pX=e.clientX;pY=e.clientY;});
+window.addEventListener('pointerup',function(){isDrag=false;});
+window.addEventListener('pointermove',function(e){if(!isDrag)return;tRY+=(e.clientX-pX)*0.005;tRX+=(e.clientY-pY)*0.004;tRX=Math.max(0.15,Math.min(1.1,tRX));pX=e.clientX;pY=e.clientY;});
+var t0=null;
+cv.addEventListener('touchstart',function(e){if(e.touches.length===1){t0={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault();}},{passive:false});
+cv.addEventListener('touchmove',function(e){if(t0&&e.touches.length===1){tRY+=(e.touches[0].clientX-t0.x)*0.005;tRX+=(e.touches[0].clientY-t0.y)*0.004;tRX=Math.max(0.15,Math.min(1.1,tRX));t0={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault();}},{passive:false});
+cv.addEventListener('touchend',function(){t0=null;});
+
+function anim(){requestAnimationFrame(anim);
+  rY+=(tRY-rY)*0.08;rX+=(tRX-rX)*0.08;
+  bp.x+=(bt.x-bp.x)*0.05;bp.y+=(bt.y-bp.y)*0.05;bp.z+=(bt.z-bp.z)*0.05;
+  bl.position.set(bp.x,bp.y,bp.z);gw.position.set(bp.x,bp.y,bp.z);
+  cam.position.x=Math.sin(rY)*Math.cos(rX)*camDist;cam.position.y=Math.sin(rX)*camDist;cam.position.z=Math.cos(rY)*Math.cos(rX)*camDist;
+  cam.lookAt(0,-0.5,0);ren.render(sc,cam);
+}
+
+window.addEventListener('resize',function(){W=innerWidth;H=innerHeight;cam.aspect=W/H;cam.updateProjectionMatrix();ren.setSize(W,H);});
+
+setupLevel();anim();
+})();
+</script>
+</body>
+</html>

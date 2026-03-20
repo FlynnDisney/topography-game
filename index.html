@@ -372,13 +372,42 @@ function onSlider(){
 
 function setupLevel(){
   var lv=levels[cl];
-  if(!lv){var o=document.getElementById('ov');o.classList.add('show');document.getElementById('ovi').className='ovi w';document.getElementById('ovi').innerHTML='&#9734;';document.getElementById('ovt').textContent='Landscape mastered';document.getElementById('ovt').style.color='#c8a96e';document.getElementById('ovp').textContent='You navigated the full attractor topology.';document.getElementById('ovb').textContent='Play again';document.getElementById('ovb').onclick=function(){o.classList.remove('show');cl=0;setupLevel();};return;}
+  if(!lv){
+    var o=document.getElementById('ov');o.classList.add('show');
+    document.getElementById('ovi').className='ovi w';document.getElementById('ovi').innerHTML='&#9734;';
+    document.getElementById('ovt').textContent='You finished all the levels!';document.getElementById('ovt').style.color='#c8a96e';
+    document.getElementById('ovp').innerHTML='Did you learn how to transition between emotions?<br><br>This work is part of <strong>The Emotional Athlete</strong> project, an ambitious attempt to formalise the role of emotions in motor learning.<br><br>This game comes from research on two cognitive science theories: predictive processing and enactivism. These theories help us explain what emotions are and how they relate to each other.<br><br><a href="https://flynndisney.substack.com/" target="_blank" style="color:var(--accent);text-decoration:underline;">Want to support The Emotional Athlete? Subscribe for weekly content.</a>';
+    document.getElementById('ovb').textContent='Play again';
+    document.getElementById('ovb').onclick=function(){o.classList.remove('show');cl=0;window._shownParticiples=false;setupLevel();};
+    return;
+  }
+
+  // Participles interstitial before level 8 (depression→hope)
+  if(cl===8 && !window._shownParticiples){
+    window._shownParticiples=true;
+    var o=document.getElementById('ov');o.classList.add('show');
+    document.getElementById('ovi').className='ovi w';document.getElementById('ovi').innerHTML='&#10022;';
+    document.getElementById('ovt').textContent='The words inside the basins';document.getElementById('ovt').style.color='var(--accent)';
+    document.getElementById('ovp').innerHTML='Did you notice the words like \u201Csurging\u201D, \u201Cdropping\u201D or \u201Ctightening\u201D? These participles represent different points in a basin, showing you that the same emotion can work in many different ways.<br><br>Go through the game again afterwards and explore different points in the attractor basins.';
+    document.getElementById('ovb').textContent='Continue';
+    document.getElementById('ovb').onclick=function(){o.classList.remove('show');setupLevelInner();};
+    return;
+  }
+  setupLevelInner();
+}
+
+function setupLevelInner(){
+  var lv=levels[cl];
   tp=0;var pp=document.getElementById('pips');pp.innerHTML='';
   for(var i=0;i<levels.length;i++){var p=document.createElement('div');p.className='pip'+(i<cl?' done':'')+(i===cl?' cur':'');pp.appendChild(p);}
   document.getElementById('lv').textContent='Level '+(cl+1);var ti=document.getElementById('tTr');
   if(lv.ty==='f'){var e=E[lv.tg];document.getElementById('tEmo').textContent=e.n;document.getElementById('tEmo').style.color=hex(e.c);document.getElementById('ban').style.setProperty('--tc',hex(e.c));ti.style.display='none';document.getElementById('lbtn').textContent='Lock in answer';}
   else{var fe=E[lv.fr],te=E[lv.to];document.getElementById('tEmo').textContent=fe.n;document.getElementById('tEmo').style.color=hex(fe.c);document.getElementById('ban').style.setProperty('--tc',hex(fe.c));ti.style.display='block';document.getElementById('trF').textContent=fe.n;document.getElementById('trF').style.color=hex(fe.c);document.getElementById('trT').textContent=te.n;document.getElementById('trT').style.color=hex(te.c);document.getElementById('lbtn').textContent='Lock in start';}
-  sE.forEach(function(s){s.value=50;});onSlider();
+
+  // Level 0 (anxiety): start sliders away from anxiety zone
+  if(cl===0){sE[0].value=80;sE[1].value=20;sE[2].value=75;}
+  else{sE.forEach(function(s){s.value=50;});}
+  onSlider();
 }
 
 function checkAnswer(){var lv=levels[cl];if(!lv)return;

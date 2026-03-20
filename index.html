@@ -404,9 +404,8 @@ function setupLevelInner(){
   if(lv.ty==='f'){var e=E[lv.tg];document.getElementById('tEmo').textContent=e.n;document.getElementById('tEmo').style.color=hex(e.c);document.getElementById('ban').style.setProperty('--tc',hex(e.c));ti.style.display='none';document.getElementById('lbtn').textContent='Lock in answer';}
   else{var fe=E[lv.fr],te=E[lv.to];document.getElementById('tEmo').textContent=fe.n;document.getElementById('tEmo').style.color=hex(fe.c);document.getElementById('ban').style.setProperty('--tc',hex(fe.c));ti.style.display='block';document.getElementById('trF').textContent=fe.n;document.getElementById('trF').style.color=hex(fe.c);document.getElementById('trT').textContent=te.n;document.getElementById('trT').style.color=hex(te.c);document.getElementById('lbtn').textContent='Lock in start';}
 
-  // Level 0 (anxiety): start sliders away from anxiety zone
-  if(cl===0){sE[0].value=80;sE[1].value=20;sE[2].value=75;}
-  else{sE.forEach(function(s){s.value=50;});}
+  // Default slider positions
+  sE.forEach(function(s){s.value=50;});
   onSlider();
 }
 
